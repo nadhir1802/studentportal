@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CampusConnect — Home</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+
+<style>
+  #userBadge { font-size: 0.9rem; font-weight: 500; }
+  .feed-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .feed-preview .post-card { padding: 0.8rem; margin-bottom: 0.8rem; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+  .post-header { font-weight: 600; margin-bottom: 0.4rem; }
+  .post-content { margin-bottom: 0.4rem; }
+  .post-tags { font-size: 0.85rem; color: #555; }
+</style>
+</head>
+
+<body>
+<header class="hero">
+  <div class="hero-inner">
+    <div class="brand">
+      <div class="logo">🎓</div>
+      <div>
+        <h1>CampusConnect</h1>
+        <p class="tag">Connect • Collab • Share — make campus fun ✨</p>
+      </div>
+    </div>
+    <div id="userBadge" class="user-badge"></div>
+  </div>
+
+  <nav class="main-nav">
+    <a href="profile.html" class="btn">My Profile</a>
+    <a href="posts.html" class="btn">Feed</a>
+    <a href="groups.html" class="btn">Groups</a>
+    <a href="materials.html" class="btn">Materials</a>
+    <button id="logoutBtn" class="btnalt">🚪 Logout</button>
+  </nav>
+</header>
+
+<main class="container">
+  <section class="welcome card">
+    <h2 id="welcomeTitle">Welcome 👋</h2>
+    <p id="welcomeMsg">CampusConnect helps you find study buddies, share notes, and spark ideas. Try making a profile, creating a post, or joining a group.</p>
+    <div class="cta-row">
+      <a href="profile.html" class="big-cta">Create Profile</a>
+      <a href="posts.html" class="big-cta alt">See Feed</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Tips to make it fun</h3>
+    <ul>
+      <li>Upload a short bio and skills — people find you faster.</li>
+      <li>Use tags in posts (e.g. <code>#exam</code>, <code>#project</code>).</li>
+      <li>Attach small PDFs or images to materials (demo stores them in localStorage).</li>
+    </ul>
+  </section>
+
+  <!-- Feed Block -->
+  <section class="card" id="feedBlock">
+    <h3>Campus Feed</h3>
+    <div class="feed-actions">
+      <button id="updateProfileBtn" class="btn">Update Profile</button>
+      <button id="toggleFeedBtn" class="btnalt">Hide Feed</button>
+      <button id="postSomethingBtn" class="btn primary">Post Something</button>
+    </div>
+    <div id="feedPreview" class="feed-preview"></div>
+  </section>
+</main>
+
+<div id="confetti-wrapper"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBNgmIM9ZuvZ6XGXBLwwjvcA_0iZFeEFgM",
+  authDomain: "xhaw-38afb.firebaseapp.com",
+  databaseURL: "https://xhaw-38afb-default-rtdb.firebaseio.com",
+  projectId: "xhaw-38afb",
+  storageBucket: "xhaw-38afb.appspot.com",
+  messagingSenderId: "1083342543018",
+  appId: "1:1083342543018:web:197cae3d50914ba34098d3",
+  measurementId: "G-86ELK1E11Y"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const badgeEl = document.getElementById("userBadge");
+const logoutBtn = document.getElementById("logoutBtn");
+const welcomeTitle = document.getElementById("welcomeTitle");
+const welcomeMsg = document.getElementById("welcomeMsg");
+
+const updateProfileBtn = document.getElementById("updateProfileBtn");
+const toggleFeedBtn = document.getElementById("toggleFeedBtn");
+const postSomethingBtn = document.getElementById("postSomethingBtn");
+const feedPreview = document.getElementById("feedPreview");
+
+let feedVisible = true;
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    window.location.href = "signin.html";
+    return;
+  }
+
+  badgeEl.textContent = `👤 ${user.email}`;
+
+  // Fetch profile
+  try {
+    const profileSnap = await get(ref(db, `profiles/${user.uid}`));
+    const profileExists = profileSnap.exists();
+    updateProfileBtn.style.display = profileExists ? "inline-block" : "none";
+
+    if (profileExists) {
+      const data = profileSnap.val();
+      welcomeTitle.textContent = `Welcome, ${data.name} 👋`;
+      welcomeMsg.innerHTML = `You are a year ${data.year || ""} ${data.course || ""} student. Skills: ${data.skills || ""}. Bio: ${data.bio || ""}`;
+    }
+
+    loadFeedPreview();
+  } catch (err) {
+    console.error("Error loading profile/feed:", err);
+  }
+});
+
+// Logout
+logoutBtn.addEventListener("click", async () => {
+  try {
+    await signOut(auth);
+    window.location.href = "signin.html";
+  } catch (err) {
+    console.error("Logout error:", err);
+    alert("Logout failed: " + err.message);
+  }
+});
+
+// Feed preview
+async function loadFeedPreview() {
+  try {
+    const postsSnap = await get(ref(db, "posts"));
+    const posts = postsSnap.exists()
+      ? Object.entries(postsSnap.val()).sort((a, b) => b[1].timestamp - a[1].timestamp).slice(0, 3)
+      : [];
+
+    feedPreview.innerHTML = posts.map(([id, post]) => `
+      <div class="post-card">
+        <div class="post-header">${post.authorName}</div>
+        <div class="post-content">${post.content}</div>
+        <div class="post-tags">${(post.tags||[]).map(t => `#${t}`).join(", ")}</div>
+      </div>
+    `).join("") || "<p>No posts yet.</p>";
+  } catch (err) {
+    console.error("Error loading feed:", err);
+  }
+}
+
+// Toggle feed
+toggleFeedBtn.addEventListener("click", () => {
+  feedVisible = !feedVisible;
+  feedPreview.style.display = feedVisible ? "block" : "none";
+  toggleFeedBtn.textContent = feedVisible ? "Hide Feed" : "Show Feed";
+});
+
+// Post Something
+postSomethingBtn.addEventListener("click", () => {
+  window.location.href = "posts.html";
+});
+
+// Update Profile
+updateProfileBtn.addEventListener("click", () => {
+  window.location.href = "profile.html";
+});
+</script>
+</body>
+</html>

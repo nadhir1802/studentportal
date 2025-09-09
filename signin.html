@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CampusConnect — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="hero">
+    <div class="hero-inner">
+        <div class="brand">
+            <div class="logo">🎓</div>
+            <div>
+                <h1>CampusConnect</h1>
+                <p class="tag">Connect • Collab • Share</p>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="container">
+    <section class="card">
+        <h2>Sign In to Your Account</h2>
+        <form id="loginForm" class="form-grid">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="Enter your email" required />
+
+            <label for="password">Password</label>
+            <div class="row small-gap">
+                <input type="password" id="password" placeholder="Enter your password" required />
+                <button type="button" class="btnalt small" onclick="switchPasswordType()">
+                    <span id="passIcon">👁️</span>
+                </button>
+            </div>
+
+            <button type="submit" class="btn primary">Sign In</button>
+            <button type="button" class="btnalt" onclick="window.location.href='signup.html';">Sign Up</button>
+            <button type="button" class="btnalt"  onclick="window.location.href='forgotPassword.html';">Forgot Password</button>
+        </form>
+    </section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBNgmIM9ZuvZ6XGXBLwwjvcA_0iZFeEFgM",
+    authDomain: "xhaw-38afb.firebaseapp.com",
+    databaseURL: "https://xhaw-38afb-default-rtdb.firebaseio.com",
+    projectId: "xhaw-38afb",
+    storageBucket: "xhaw-38afb.appspot.com",
+    messagingSenderId: "1083342543018",
+    appId: "1:1083342543018:web:197cae3d50914ba34098d3",
+    measurementId: "G-86ELK1E11Y"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+document.getElementById("loginForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+        alert("Login successful! Redirecting to Home.");
+        window.location.href = "index.html";
+    } catch (error) {
+        alert("Login failed: " + error.message);
+    }
+});
+
+
+
+
+function switchPasswordType() {
+    const passwordField = document.getElementById("password");
+    const passIcon = document.getElementById("passIcon");
+    if (passwordField.type === "password") {
+        passwordField.type = "text"; passIcon.textContent = "🙈";
+    } else {
+        passwordField.type = "password"; passIcon.textContent = "👁️";
+    }
+}
+</script>
+</body>
+</html>

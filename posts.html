@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feed Test — CampusConnect</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+body { font-family: sans-serif; padding: 1rem; }
+#feedContainer { margin-top: 1rem; }
+.post-card { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<h2>CampusConnect Feed Test</h2>
+<div id="userBadge">Checking auth...</div>
+
+<section>
+    <input id="postTitle" placeholder="Post title"><br><br>
+    <textarea id="postContent" rows="3" placeholder="Write something..."></textarea><br><br>
+    <input id="postTags" placeholder="Tags comma separated"><br><br>
+    <button id="postBtn">Post</button>
+</section>
+
+<div id="feedContainer"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+import { getDatabase, ref, push, get } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
+
+// Firebase config
+const firebaseConfig = {
+    apiKey: "AIzaSyBNgmIM9ZuvZ6XGXBLwwjvcA_0iZFeEFgM",
+    authDomain: "xhaw-38afb.firebaseapp.com",
+    databaseURL: "https://xhaw-38afb-default-rtdb.firebaseio.com",
+    projectId: "xhaw-38afb",
+    storageBucket: "xhaw-38afb.appspot.com",
+    messagingSenderId: "1083342543018",
+    appId: "1:1083342543018:web:197cae3d50914ba34098d3",
+    measurementId: "G-86ELK1E11Y"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const badge = document.getElementById("userBadge");
+const feedContainer = document.getElementById("feedContainer");
+const postBtn = document.getElementById("postBtn");
+const postTitle = document.getElementById("postTitle");
+const postContent = document.getElementById("postContent");
+const postTags = document.getElementById("postTags");
+
+let currentUser = null;
+
+// Check auth
+onAuthStateChanged(auth, user => {
+    if (!user) {
+        badge.textContent = "Not signed in! Go to signin.html";
+    } else {
+        currentUser = user;
+        badge.textContent = `👤 ${user.email}`;
+        loadFeed();
+    }
+});
+
+// Load feed
+async function loadFeed() {
+    const snapshot = await get(ref(db, "posts"));
+    feedContainer.innerHTML = "";
+    if (!snapshot.exists()) return feedContainer.innerHTML = "<p>No posts yet!</p>";
+
+    const posts = Object.entries(snapshot.val())
+        .sort((a,b) => b[1].timestamp - a[1].timestamp);
+
+    posts.forEach(([id, post]) => {
+        const div = document.createElement("div");
+        div.className = "post-card";
+        div.innerHTML = `<strong>${post.title}</strong><br>${post.content}<br><em>${post.tags?.join(", ") || ""}</em><br><small>${post.authorName}</small>`;
+        feedContainer.appendChild(div);
+    });
+}
+
+// Addas post
+postBtn.addEventListener("click", async () => {
+    if (!currentUser) return alert("Not signed in");
+
+    const title = postTitle.value.trim();
+    const content = postContent.value.trim();
+    const tags = postTags.value.split(",").map(s => s.trim()).filter(Boolean);
+
+    if (!title || !content) return alert("Title and content required");
+
+    try {
+        await push(ref(db, "posts"), {
+            authorName: currentUser.email,
+            authorId: currentUser.uid,
+            title,
+            content,
+            tags,
+            timestamp: Date.now()
+        });
+        postTitle.value = "";
+        postContent.value = "";
+        postTags.value = "";
+        loadFeed();
+    } catch(err) {
+        console.error(err);
+        alert("Error posting: " + err.message);
+    }
+});
+</script>
+
+</body>
+</html>

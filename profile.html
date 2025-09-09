@@ -1,0 +1,287 @@
+<!-- profile.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CampusConnect — Profile</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* tiny page-specific helpers so page looks okay even if CSS differs */
+    #msg { margin: 8px 0; font-size: 0.95rem; }
+    #msg.success { color: #16a34a; }
+    #msg.error { color: #ef4444; }
+    .profile-card { padding: 12px; border-radius: 10px; margin-bottom: 10px; background:#fff; border:1px solid #eef2f7; }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <a class="nav-home" href="index.html">← Home</a>
+    <div id="userBadge" class="user-badge"></div>
+    <button class="btn alt" id="logoutBtn">🚪 Logout</button>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Create / Edit Profile</h2>
+
+      <div id="msg" role="status" aria-live="polite"></div>
+
+      <div class="form-grid">
+        <label>Full name
+          <input id="name" type="text" placeholder="e.g. Aisha Daniels" />
+        </label>
+
+        <label>Course
+          <input id="course" type="text" placeholder="e.g. Computer Science" />
+        </label>
+
+        <label>Year
+          <input id="year" type="text" placeholder="e.g. 2" inputmode="numeric" />
+        </label>
+
+        <label>Skills
+          <input id="skills" type="text" placeholder="React, Python, LaTeX" />
+        </label>
+
+        <label>Short bio
+          <textarea id="bio" rows="4" placeholder="A short, snappy bio..."></textarea>
+        </label>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <button id="saveProfileBtn" class="btn primary">Save profile — 🎉</button>
+        <button id="clearProfileBtn" class="btn alt" type="button">Clear</button>
+      </div>
+    </section>
+
+    <section id="profilePreview" class="card hidden" aria-hidden="true">
+      <h3>Your profile preview</h3>
+      <div id="profileDisplay"></div>
+    </section>
+
+    <section class="card">
+      <h3>Other students</h3>
+      <div id="allProfiles" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <div id="confetti-wrapper"></div>
+
+  <script type="module">
+  // ---- imports
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+  import { getDatabase, ref, set, get, remove } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
+
+  // ---- firebase config (your project)
+  const firebaseConfig = {
+    apiKey: "AIzaSyBNgmIM9ZuvZ6XGXBLwwjvcA_0iZFeEFgM",
+    authDomain: "xhaw-38afb.firebaseapp.com",
+    databaseURL: "https://xhaw-38afb-default-rtdb.firebaseio.com",
+    projectId: "xhaw-38afb",
+    storageBucket: "xhaw-38afb.appspot.com",
+    messagingSenderId: "1083342543018",
+    appId: "1:1083342543018:web:197cae3d50914ba34098d3",
+    measurementId: "G-86ELK1E11Y"
+  };
+
+  // ---- init
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+
+  // ---- DOM refs
+  const msgEl = document.getElementById("msg");
+  const badgeEl = document.getElementById("userBadge");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  const nameInput = document.getElementById("name");
+  const courseInput = document.getElementById("course");
+  const yearInput = document.getElementById("year");
+  const skillsInput = document.getElementById("skills");
+  const bioInput = document.getElementById("bio");
+
+  const saveBtn = document.getElementById("saveProfileBtn");
+  const clearBtn = document.getElementById("clearProfileBtn");
+
+  const previewSection = document.getElementById("profilePreview");
+  const profileDisplay = document.getElementById("profileDisplay");
+  const allProfilesDiv = document.getElementById("allProfiles");
+
+  // --- helpers
+  function showMessage(text, type = "success") {
+    msgEl.textContent = text || "";
+    msgEl.className = type === "error" ? "error" : "success";
+    // remove after a while
+    if (text) setTimeout(() => { if (msgEl.textContent === text) msgEl.textContent = ""; }, 6000);
+  }
+
+  function escapeHtml(str = "") {
+    return String(str).replace(/[&<>"']/g, (ch) =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch])
+    );
+  }
+
+  function showPreview(profile) {
+    profileDisplay.innerHTML = `
+      <p><strong>Name:</strong> ${escapeHtml(profile.name)}</p>
+      <p><strong>Course:</strong> ${escapeHtml(profile.course)}</p>
+      <p><strong>Year:</strong> ${escapeHtml(profile.year)}</p>
+      <p><strong>Skills:</strong> ${escapeHtml(profile.skills)}</p>
+      <p><strong>Bio:</strong> ${escapeHtml(profile.bio)}</p>
+      <p class="small-note">${escapeHtml(profile.email || "")}</p>
+    `;
+    previewSection.classList.remove("hidden");
+    previewSection.removeAttribute("aria-hidden");
+  }
+
+  function clearPreview() {
+    profileDisplay.innerHTML = "";
+    previewSection.classList.add("hidden");
+    previewSection.setAttribute("aria-hidden", "true");
+  }
+
+  function renderAllProfiles(profilesObj = {}, currentUid = "") {
+    allProfilesDiv.innerHTML = "";
+    const uids = Object.keys(profilesObj || {});
+    if (uids.length === 0) {
+      allProfilesDiv.innerHTML = "<p class='small-note'>No profiles yet.</p>";
+      return;
+    }
+    // show each (excluding current user)
+    uids.forEach(uid => {
+      if (uid === currentUid) return;
+      const p = profilesObj[uid] || {};
+      const card = document.createElement("div");
+      card.className = "profile-card";
+      card.innerHTML = `
+        <strong>${escapeHtml(p.name || "Unnamed")}</strong>
+        <div class="small-note">Course: ${escapeHtml(p.course || "-")}</div>
+        <div class="small-note">Year: ${escapeHtml(p.year || "-")}</div>
+        <div class="small-note">Skills: ${escapeHtml(p.skills || "-")}</div>
+        <div class="small-note">${escapeHtml(p.bio || "-")}</div>
+        <div class="small-note" style="margin-top:6px;"><em>${escapeHtml(p.email || "")}</em></div>
+      `;
+      allProfilesDiv.appendChild(card);
+    });
+  }
+
+  // ---- auth guard & initial load
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      // not signed in
+      window.location.href = "signin.html";
+      return;
+    }
+    badgeEl.textContent = `👤 ${user.email}`;
+    // load current user's profile
+    try {
+      const meSnap = await get(ref(db, `profiles/${user.uid}`));
+      if (meSnap && meSnap.exists()) {
+        const data = meSnap.val();
+        nameInput.value = data.name || "";
+        courseInput.value = data.course || "";
+        yearInput.value = data.year || "";
+        skillsInput.value = data.skills || "";
+        bioInput.value = data.bio || "";
+        showPreview({ ...data, email: user.email });
+      } else {
+        clearPreview();
+      }
+      // load all profiles for directory
+      const allSnap = await get(ref(db, `profiles`));
+      const allObj = (allSnap && allSnap.exists()) ? allSnap.val() : {};
+      renderAllProfiles(allObj, user.uid);
+    } catch (err) {
+      console.error("Load error:", err);
+      showMessage("Failed to load profile. See console for details.", "error");
+    }
+  });
+
+  // ---- logout
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      await signOut(auth);
+      window.location.href = "signin.html";
+    } catch (err) {
+      console.error("Logout error", err);
+      showMessage("Logout failed: " + err.message, "error");
+    }
+  });
+
+  // ---- save
+  saveBtn.addEventListener("click", async () => {
+    const name = nameInput.value.trim();
+    const course = courseInput.value.trim();
+    const year = yearInput.value.trim();
+    const skills = skillsInput.value.trim();
+    const bio = bioInput.value.trim();
+
+    // validation
+    if (!name) { showMessage("Please enter a name.", "error"); nameInput.focus(); return; }
+    if (!course) { showMessage("Please enter a course.", "error"); courseInput.focus(); return; }
+    if (!year) { showMessage("Please enter your year.", "error"); yearInput.focus(); return; }
+    if (isNaN(Number(year)) || Number(year) < 1) { showMessage("Year must be a number >= 1", "error"); yearInput.focus(); return; }
+    if (!skills) { showMessage("Please add at least one skill.", "error"); skillsInput.focus(); return; }
+    if (!bio || bio.length < 10) { showMessage("Please write a longer bio (10+ chars).", "error"); bioInput.focus(); return; }
+
+    const user = auth.currentUser;
+    if (!user) { showMessage("You must be signed in.", "error"); return; }
+
+    const profile = { name, course, year, skills, bio, email: user.email };
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
+    try {
+      await set(ref(db, `profiles/${user.uid}`), profile);
+      showPreview(profile);
+      showMessage("Profile saved!", "success");
+      // refresh directory
+      const allSnap = await get(ref(db, `profiles`));
+      const allObj = (allSnap && allSnap.exists()) ? allSnap.val() : {};
+      renderAllProfiles(allObj, user.uid);
+    } catch (err) {
+      console.error("Save error:", err);
+      showMessage("Failed to save profile: " + err.message, "error");
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save profile — 🎉";
+    }
+  });
+
+  // ---- clear
+  clearBtn.addEventListener("click", async () => {
+    if (!confirm("Delete your profile from CampusConnect? This cannot be undone.")) return;
+    const user = auth.currentUser;
+    if (!user) { showMessage("Not signed in.", "error"); return; }
+
+    clearBtn.disabled = true;
+    clearBtn.textContent = "Deleting...";
+    try {
+      await remove(ref(db, `profiles/${user.uid}`));
+      nameInput.value = "";
+      courseInput.value = "";
+      yearInput.value = "";
+      skillsInput.value = "";
+      bioInput.value = "";
+      clearPreview();
+      showMessage("Profile removed.", "success");
+      // refresh directory
+      const allSnap = await get(ref(db, `profiles`));
+      const allObj = (allSnap && allSnap.exists()) ? allSnap.val() : {};
+      renderAllProfiles(allObj, user.uid);
+    } catch (err) {
+      console.error("Clear error:", err);
+      showMessage("Failed to clear profile: " + err.message, "error");
+    } finally {
+      clearBtn.disabled = false;
+      clearBtn.textContent = "Clear";
+    }
+  });
+
+  </script>
+</body>
+</html>

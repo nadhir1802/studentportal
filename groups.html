@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CampusConnect — Groups</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+
+</head>
+<body>
+
+<header class="topbar">
+    <a class="nav-home" href="index.html">← Home</a>
+    <div id="userBadge" class="user-badge"></div>
+    <button class="btnalt" onclick="logout()">🚪 Logout</button>
+</header>
+
+<main class="container">
+
+    <section class="card">
+        <h2>Create a Group</h2>
+        <input id="groupName" placeholder="Group Name" />
+        <textarea id="groupDesc" rows="3" placeholder="Group Description"></textarea>
+        <button id="createGroupBtn" class="btn primary">Create Group</button>
+    </section>
+
+    <section class="card">
+        <h2>My Groups</h2>
+        <div id="groupsList"></div>
+    </section>
+
+    <section class="card" id="chatSection" style="display:none">
+        <h2 id="chatTitle">Group Chat</h2>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="row small-gap">
+            <input id="chatInput" placeholder="Type a message..." />
+            <button id="sendMsgBtn" class="btn primary">Send</button>
+        </div>
+    </section>
+
+</main>
+
+<div id="confetti-wrapper"></div>
+
+<script type="module" src="js/groups.js"></script>
+
+</body>
+</html>
